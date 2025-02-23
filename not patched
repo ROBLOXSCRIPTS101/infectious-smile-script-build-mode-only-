@@ -3,7 +3,6 @@ local teleportService = game:GetService("TeleportService")
 
 -- Target Position (Change this to desired TP coords)
 local targetPosition = Vector3.new(257.29107666015625, 996.7486572265625, -76.50521850585938)
-local groundPosition = Vector3.new(257.29107666015625, 995, -76.50521850585938) -- Slightly lower for ground
 
 -- Variables to control toggles
 local autoFarmActive = false
@@ -42,22 +41,22 @@ local function createGUI()
         return button
     end
 
-    -- AutoFarm Button (Completely freezes player)
+    -- AutoFarm Button (Teleports player to target position every 0.0001 seconds)
     local autoFarmButton = createButton("AutoFarm", UDim2.new(0, 10, 0, 10), function(button)
         autoFarmActive = not autoFarmActive
         button.BackgroundColor3 = autoFarmActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 
-        local character = player.Character
-        if character then
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                if autoFarmActive then
-                    rootPart.CFrame = CFrame.new(targetPosition) -- Instantly TP
-                    rootPart.Anchored = true -- **Prevents falling & keeps you in place**
-                else
-                    rootPart.CFrame = CFrame.new(groundPosition) -- Moves to ground
-                    rootPart.Anchored = false -- Re-enable movement
+        -- Start or stop the teleporting loop
+        if autoFarmActive then
+            while autoFarmActive do
+                local character = player.Character
+                if character then
+                    local rootPart = character:FindFirstChild("HumanoidRootPart")
+                    if rootPart then
+                        rootPart.CFrame = CFrame.new(targetPosition) -- TP instantly
+                    end
                 end
+                wait(0.0001) -- Run the loop every 0.0001 seconds
             end
         end
     end)
