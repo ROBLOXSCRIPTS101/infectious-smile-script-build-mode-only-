@@ -1,38 +1,75 @@
 local player = game.Players.LocalPlayer
 local teleportService = game:GetService("TeleportService")
+local runService = game:GetService("RunService")
 
 -- Target Position (Change this to desired TP coords)
-local targetPosition = Vector3.new(257.29107666015625, 996.7486572265625, -76.50521850585938)
+local targetPosition = Vector3.new(257.291, 996.748, -76.505)
 
 -- Variables to control toggles
 local autoFarmActive = false
 local invisibleActive = false
 
--- Function to create GUI (Persists after respawn)
+-- Function to force network ownership (prevents server overriding position)
+local function setNetworkOwner()
+    local character = player.Character
+    if character then
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            rootPart:SetNetworkOwner(player)
+        end
+    end
+end
+
+-- Function to stabilize teleportation
+local function stabilizeTeleport()
+    local character = player.Character
+    if character then
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            rootPart.Anchored = true
+            wait(0.1)
+            rootPart.CFrame = CFrame.new(targetPosition)
+            wait(0.1)
+            rootPart.Anchored = false
+        end
+    end
+end
+
+-- Function to disable anti-cheat physics resets
+local function disableStates()
+    local character = player.Character
+    if character then
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+        end
+    end
+end
+
+-- GUI Creation
 local function createGUI()
     if player.PlayerGui:FindFirstChild("CustomGUI") then
         player.PlayerGui.CustomGUI:Destroy()
     end
 
-    local screenGui = Instance.new("ScreenGui")
+    local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
     screenGui.Name = "CustomGUI"
-    screenGui.Parent = player:WaitForChild("PlayerGui")
 
-    local mainFrame = Instance.new("Frame")
+    local mainFrame = Instance.new("Frame", screenGui)
     mainFrame.Size = UDim2.new(0, 220, 0, 180)
     mainFrame.Position = UDim2.new(0, 10, 0, 10)
     mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    mainFrame.Parent = screenGui
     mainFrame.Draggable = true
     mainFrame.Active = true
 
     -- Function to create a button
     local function createButton(name, position, callback)
-        local button = Instance.new("TextButton")
+        local button = Instance.new("TextButton", mainFrame)
         button.Size = UDim2.new(0, 200, 0, 50)
         button.Position = position
         button.Text = name
-        button.Parent = mainFrame
         button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         button.TextColor3 = Color3.fromRGB(0, 0, 0)
         button.MouseButton1Click:Connect(function()
@@ -41,23 +78,28 @@ local function createGUI()
         return button
     end
 
-    -- AutoFarm Button (Teleports player to target position every 0.0001 seconds)
+    -- AutoFarm Button (Uses RenderStepped for smoother teleportation)
     local autoFarmButton = createButton("AutoFarm", UDim2.new(0, 10, 0, 10), function(button)
         autoFarmActive = not autoFarmActive
         button.BackgroundColor3 = autoFarmActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 
-        -- Start or stop the teleporting loop
         if autoFarmActive then
-            while autoFarmActive do
-                local character = player.Character
-                if character then
-                    local rootPart = character:FindFirstChild("HumanoidRootPart")
-                    if rootPart then
-                        rootPart.CFrame = CFrame.new(targetPosition) -- TP instantly
+            setNetworkOwner()
+            disableStates()
+            stabilizeTeleport()
+
+            runService.RenderStepped:Connect(function()
+                if autoFarmActive then
+                    local character = player.Character
+                    if character then
+                        local rootPart = character:FindFirstChild("HumanoidRootPart")
+                        if rootPart then
+                            rootPart.Velocity = Vector3.new(0, 0, 0) -- Stops movement jitter
+                            rootPart.CFrame = CFrame.new(targetPosition) -- Teleport every frame
+                        end
                     end
                 end
-                wait(0.0001) -- Run the loop every 0.0001 seconds
-            end
+            end)
         end
     end)
 
@@ -65,7 +107,15 @@ local function createGUI()
     local invisibleButton = createButton("Invisible", UDim2.new(0, 10, 0, 70), function(button)
         invisibleActive = not invisibleActive
         button.BackgroundColor3 = invisibleActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-        toggleInvisible()
+        local character = player.Character
+        if character then
+            for _, part in pairs(character:GetChildren()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    part.Transparency = invisibleActive and 1 or 0.3
+                    part.CanCollide = not invisibleActive
+                end
+            end
+        end
     end)
 
     -- Rejoin Button
@@ -74,29 +124,12 @@ local function createGUI()
     end)
 end
 
--- Function to make player invisible
-local function toggleInvisible()
-    local character = player.Character
-    if character then
-        for _, part in pairs(character:GetChildren()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                if invisibleActive then
-                    part.Transparency = 1
-                    part.CanCollide = false
-                else
-                    part.Transparency = 0.3
-                    part.CanCollide = true
-                end
-            end
-        end
-    end
-end
-
 -- Respawn Handling (Keeps GUI and States)
 local function onCharacterAdded(character)
     wait(1)
     createGUI()
-    toggleInvisible()
+    setNetworkOwner()
+    disableStates()
 end
 
 player.CharacterAdded:Connect(onCharacterAdded)
