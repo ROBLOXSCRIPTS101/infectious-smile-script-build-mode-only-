@@ -1,0 +1,106 @@
+local player = game.Players.LocalPlayer
+local teleportService = game:GetService("TeleportService")
+
+-- Target Position (Change this to desired TP coords)
+local targetPosition = Vector3.new(257.29107666015625, 996.7486572265625, -76.50521850585938)
+local groundPosition = Vector3.new(257.29107666015625, 995, -76.50521850585938) -- Slightly lower for ground
+
+-- Variables to control toggles
+local autoFarmActive = false
+local invisibleActive = false
+
+-- Function to create GUI (Persists after respawn)
+local function createGUI()
+    if player.PlayerGui:FindFirstChild("CustomGUI") then
+        player.PlayerGui.CustomGUI:Destroy()
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CustomGUI"
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 220, 0, 180)
+    mainFrame.Position = UDim2.new(0, 10, 0, 10)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    mainFrame.Parent = screenGui
+    mainFrame.Draggable = true
+    mainFrame.Active = true
+
+    -- Function to create a button
+    local function createButton(name, position, callback)
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(0, 200, 0, 50)
+        button.Position = position
+        button.Text = name
+        button.Parent = mainFrame
+        button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        button.TextColor3 = Color3.fromRGB(0, 0, 0)
+        button.MouseButton1Click:Connect(function()
+            callback(button)
+        end)
+        return button
+    end
+
+    -- AutoFarm Button (Completely freezes player)
+    local autoFarmButton = createButton("AutoFarm", UDim2.new(0, 10, 0, 10), function(button)
+        autoFarmActive = not autoFarmActive
+        button.BackgroundColor3 = autoFarmActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+
+        local character = player.Character
+        if character then
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                if autoFarmActive then
+                    rootPart.CFrame = CFrame.new(targetPosition) -- Instantly TP
+                    rootPart.Anchored = true -- **Prevents falling & keeps you in place**
+                else
+                    rootPart.CFrame = CFrame.new(groundPosition) -- Moves to ground
+                    rootPart.Anchored = false -- Re-enable movement
+                end
+            end
+        end
+    end)
+
+    -- Invisible Button
+    local invisibleButton = createButton("Invisible", UDim2.new(0, 10, 0, 70), function(button)
+        invisibleActive = not invisibleActive
+        button.BackgroundColor3 = invisibleActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        toggleInvisible()
+    end)
+
+    -- Rejoin Button
+    createButton("Rejoin", UDim2.new(0, 10, 0, 130), function()
+        teleportService:Teleport(game.PlaceId, player)
+    end)
+end
+
+-- Function to make player invisible
+local function toggleInvisible()
+    local character = player.Character
+    if character then
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                if invisibleActive then
+                    part.Transparency = 1
+                    part.CanCollide = false
+                else
+                    part.Transparency = 0.3
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end
+
+-- Respawn Handling (Keeps GUI and States)
+local function onCharacterAdded(character)
+    wait(1)
+    createGUI()
+    toggleInvisible()
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- First GUI creation
+createGUI()
